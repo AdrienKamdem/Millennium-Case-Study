@@ -1,0 +1,65 @@
+# Classification + aspect-sentiment schema.
+#
+# Two-dimensional rather than the brief's flat 5-way list: "is this about AI?" and
+# "what kind of AI story is it?" are orthogonal facts, and flattening them loses
+# the buzzword separation the brief asks for. `incidental` IS the buzzword class.
+#
+# This rubric is the cached prefix on every LLM call — keep it byte-stable or you
+# lose the prompt cache. Verify with usage.cache_read_input_tokens.
+
+ai_relevance:
+  none:        "AI is not mentioned, or is mentioned in a way wholly unrelated to the company."
+  incidental:  "AI appears as boilerplate, buzzword, or passing reference with no bearing on the company's business. The buzzword class."
+  substantive: "The document says something concrete about AI in relation to this company's products, revenue, costs, or competitive position."
+
+ai_role:
+  A_partnership:       "AI partnership or adoption announcement whose materiality to the core business is unclear."
+  B_costcut:           "Cost-cutting or restructuring in which AI is cited; the AI linkage may be incidental rather than causal."
+  C_positive_exposure: "Tangible positive AI exposure — AI-driven revenue or demand improvement in the company's end-markets."
+  D_negative_exposure: "Negative AI exposure — budgets displaced by AI spending, or AI eroding the company's end-market."
+  E_none:              "No meaningful AI association. The default; most documents should land here."
+
+materiality:
+  high:   "Concerns the core business; plausibly affects revenue, margin, or competitive position."
+  medium: "Relevant but peripheral, or affects a minor segment."
+  low:    "Mentioned only; no discernible link to financial outcomes."
+
+# The crux of Task 3. Sentiment is directed at AI's impact ON THIS COMPANY, not at
+# the document's overall mood, and not at whether AI in general sounds exciting.
+#
+# The ADBE case is why this matters: coverage can be enthusiastic about generative
+# AI while being bearish on Adobe, because the same technology threatens its moat.
+# Document-level sentiment scores that exactly backwards.
+valence_ai:
+  "-2": "Clear headwind. AI erodes this company's revenue, margins, or competitive position."
+  "-1": "Mild headwind, or a credible threat framed as uncertain."
+  "0": "AI mentioned but directional impact on this company is not assessable."
+  "+1": "Mild tailwind."
+  "+2": "Clear tailwind. AI drives revenue, demand, or competitive advantage for this company."
+
+# Weights used when aggregating documents into the index (src/index/salience.py).
+# Run one sensitivity check with all weights = 1 and report whether rankings move.
+source_weights:
+  sec_filing: 1.0      # primary disclosure
+  transcript: 1.0      # primary, verbatim
+  ir_release: 0.8      # primary, promotional
+  news: 0.6            # secondary
+  social: 0.3          # secondary, unvetted
+
+materiality_weights:
+  high: 1.0
+  medium: 0.6
+  low: 0.2
+
+# Empirical-Bayes shrinkage for thin coverage. lambda = n / (n + k).
+# Report sensitivity to k; justify the chosen value by showing month-over-month
+# variance of the raw vs shrunk series.
+shrinkage:
+  k: 10
+  salience_target: trailing_12m_company_mean
+  valence_target: 0.0        # absent evidence, the honest prior is "no directional view"
+
+models:
+  bulk: claude-haiku-4-5     # first pass over the full corpus, batched
+  adjudicator: claude-sonnet-5  # ambiguous band + all transcript/filing passages
+  embeddings: BAAI/bge-small-en-v1.5   # local, CPU, no API cost

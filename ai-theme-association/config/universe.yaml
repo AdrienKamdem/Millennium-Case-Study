@@ -1,0 +1,102 @@
+# Fixed 9-name universe, per the case study appendix.
+#
+# `aliases` are what gets sent to news search. Getting these wrong corrupts the
+# DENOMINATOR of every salience score (total coverage of the company), which is
+# far more damaging than missing a few AI articles — and you will not notice it
+# from the index alone. Measure the false-positive rate per name before harvesting.
+#
+# `cik` is left null deliberately: resolve it from
+# https://www.sec.gov/files/company_tickers.json rather than hand-typing.
+# `make probe` fills these in.
+
+window:
+  start: "2023-01-01"
+  end: "2026-09-30"
+  index_frequency: monthly      # quarterly variant built as a robustness check
+
+companies:
+  - ticker: ADBE
+    name: Adobe Inc
+    cik: "0000796343"
+    sector_etf: XLK
+    aliases: ["Adobe"]
+    alias_risk: low             # "adobe" the building material is rare in financial news
+
+  - ticker: CAT
+    name: Caterpillar Inc
+    cik: "0000018230"
+    sector_etf: XLI
+    aliases: ["Caterpillar"]
+    alias_risk: low             # NEVER query the bare ticker "CAT"
+
+  - ticker: DELL
+    name: Dell Technologies Inc
+    cik: "0001571996"
+    sector_etf: XLK
+    aliases: ["Dell Technologies", "Dell Inc"]
+    alias_risk: medium          # bare "Dell" collides with Michael Dell and the surname
+
+  - ticker: INTC
+    name: Intel Corporation
+    cik: "0000050863"
+    sector_etf: XLK
+    aliases: ["Intel Corp", "Intel Corporation"]
+    alias_risk: HIGH            # "intel" as a common noun ("military intel", "competitive intel").
+                                # Case-sensitivity does not save you in headline-case text.
+
+  - ticker: MU
+    name: Micron Technology Inc
+    cik: "0000723125"
+    sector_etf: XLK
+    aliases: ["Micron Technology", "Micron"]
+    alias_risk: HIGH            # "micron" is a unit of length
+
+  - ticker: NVDA
+    name: Nvidia Corporation
+    cik: "0001045810"
+    sector_etf: XLK
+    aliases: ["Nvidia", "NVIDIA"]
+    alias_risk: low
+
+  - ticker: PG
+    name: The Procter & Gamble Company
+    cik: "0000080424"
+    sector_etf: XLP
+    aliases: ["Procter & Gamble", "Procter and Gamble", "P&G"]
+    alias_risk: low             # watch ampersand URL-encoding
+
+  - ticker: TEAM
+    name: Atlassian Corporation
+    cik: "0001650372"
+    sector_etf: XLK
+    aliases: ["Atlassian"]
+    alias_risk: low             # NEVER query the bare ticker "TEAM"
+
+  - ticker: WM
+    name: Waste Management Inc
+    cik: "0000823768"
+    sector_etf: XLI
+    aliases: ["Waste Management, Inc", "WM Inc"]
+    alias_risk: HIGH            # "waste management" is a generic industry noun phrase.
+                                # Most naive hits will be municipal waste policy, not the company.
+
+# Measured false-positive rates from the day-1 alias check (20 headlines per name).
+# Fill these in — they are the concrete evidence behind the scaling memo's
+# entity-disambiguation argument, and they belong in the coverage-bias section.
+alias_false_positive_rate:
+  INTC: null
+  MU: null
+  WM: null
+
+# Expected role of each name in the test. Stated up front so that confirmation
+# bias is visible rather than hidden — check results AGAINST this, do not fit to it.
+priors:
+  NVDA: "Pure play. Sanity check: must load strongly positive or the factor is broken."
+  MU:   "AI infrastructure (HBM). High on both instruments."
+  DELL: "AI infrastructure (servers). High on both instruments."
+  INTC: "Loud narrative, weak realised AI revenue. Divergence candidate."
+  ADBE: "Negative-valence case: high AI salience, but AI as threat to the moat."
+  TEAM: "AI narrative plus AI-displacement risk to seat-based pricing."
+  CAT:  "Low AI text; possible real AI beta via data-centre power. Divergence candidate."
+  PG:   "Null control. Both instruments should read ~zero."
+  WM:   "Null control. Both instruments should read ~zero."

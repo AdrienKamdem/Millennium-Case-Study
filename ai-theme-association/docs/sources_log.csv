@@ -1,0 +1,12 @@
+source,category,access_method,date_range,n_docs,cost_gbp,status,limitations
+sec_edgar_primary,Primary,"data.sec.gov submissions API (recent + filings.files shards) -> Archives document fetch",2023-01-05..2026-09-10,562,0,used,"562 primary documents across 10-K/10-Q/8-K. Index verified complete against the submissions API: 0 missing for 8 of 9 names, 1 DELL filing missing."
+sec_edgar_ex99,Primary,"Filing index page, Type startswith EX-99",2023-01-05..2026-09-10,310,0,used,"An 8-K primary document is a ~4k-char cover page; the substance is Exhibit 99.1. Excluding exhibits would have left ~76% of the SEC corpus as boilerplate."
+alpha_vantage_news,Secondary,"NEWS_SENTIMENT, one unbounded call per ticker",2026 only,7879,0,used_with_caveats,"Returns the most RECENT 1000 regardless of time_from. 8 of 9 tickers reach 2026 only (NVDA 19 days, WM 172). Quarter-sliced re-query returned empty feeds before 2026, confirming provider retention. Used cross-sectionally; excluded from the index time series."
+alpha_vantage_premium,Secondary,"$49.99/mo minimum",,,0,rejected,"Tiers price requests-per-minute, not archive depth; no documented history guarantee. Over the GBP100 budget and not a guaranteed fix."
+gdelt_doc,Secondary,"api.gdeltproject.org DOC 2.0",,,0,rejected,"Reaches 2023 and is free, but resolves companies by text match rather than ticker tag. Unsafe for INTC (intel the noun), MU (micron the unit) and WM (waste management the phrase) -- all flagged alias_risk HIGH in config/universe.yaml."
+hn_algolia,Secondary,,,,0,rejected,"Probe returned non-JSON. Recorded in config/sources.yaml."
+earnings_transcripts,Primary,,,,0,descoped,"No free source covering the window. 8-K EX-99.1 earnings releases used as the substitute."
+ir_newsroom,Primary,,,,0,descoped,"Nine bespoke scrapers; cut for time. SEC disclosure covers the same announcements with better structure."
+yfinance,Primary,"yfinance daily adjusted closes",2023-01-01..2026-09-30,,0,used,"Part 2. Validated for gaps and the NVDA 10:1 split."
+ken_french,Primary,"Kenneth French Data Library, daily FF5 + MOM",2023-01-01..2026-09-30,,0,used,"Part 2 controls."
+anthropic_api,Inferred,"claude-haiku-4-5 via Batch API",,4624,4.97,used,"Classification and aspect sentiment. USD 6.29 total. Prompt caching did not engage: the rubric is 572 tokens against Haiku 4.5's 4096-token minimum cacheable prefix, so the prefix was billed in full on every call."

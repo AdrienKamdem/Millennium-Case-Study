@@ -1,0 +1,28 @@
+# Secrets
+.env
+
+# Environments
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Cached network responses and intermediate data — regenerable, do not commit
+data/raw/**
+data/interim/**
+data/processed/**
+*.parquet
+*.pkl
+
+# ...but keep the directory structure and the committed sample
+!data/**/.gitkeep
+!data/processed/sample/**
+
+# Generated outputs (commit the final figures you actually use in the deck)
+outputs/figures/*
+outputs/tables/*
+!outputs/**/.gitkeep
+
+# OS
+.DS_Store

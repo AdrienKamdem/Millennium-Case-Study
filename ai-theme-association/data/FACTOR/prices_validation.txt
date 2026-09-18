@@ -1,0 +1,46 @@
+DAILY PRICE DATA VALIDATION
+======================================================================
+
+Date range: 2023-01-04 -> 2026-09-14
+Number of observations: 926
+Number of tickers: 24
+Tickers: ['ADBE', 'AIQ', 'AMD', 'ANET', 'ARM', 'ASML', 'AVGO', 'CAT', 'DELL', 'INTC', 'MRVL', 'MU', 'NVDA', 'PG', 'PLTR', 'SMCI', 'SPY', 'TEAM', 'TSM', 'VRT', 'WM', 'XLI', 'XLK', 'XLP']
+
+CHECK 1 - DATA GAPS
+----------------------------------------------------------------------
+Result: PASS
+Gaps greater than 5 calendar days: 0
+
+CHECK 2 - ROW COUNT PLAUSIBILITY
+----------------------------------------------------------------------
+Result: PASS
+Actual rows: 926
+Expected rows (~252/year): 931
+Actual / expected ratio: 99.5%
+
+CHECK 3 - EXTREME DAILY RETURNS
+----------------------------------------------------------------------
+Tickers with |daily return| > 25%: 8
+ARM: [('2024-02-08', 0.479), ('2024-02-12', 0.293)]
+DELL: [('2024-03-01', 0.316), ('2026-05-29', 0.328)]
+INTC: [('2024-08-02', -0.261)]
+MRVL: [('2023-05-26', 0.324), ('2026-06-02', 0.325)]
+PLTR: [('2024-02-06', 0.308), ('2026-08-04', 0.295)]
+SMCI: [('2023-05-03', 0.283), ('2024-01-19', 0.359), ('2024-02-22', 0.329)]
+TEAM: [('2026-05-01', 0.296), ('2026-08-07', 0.353)]
+VRT: [('2023-08-02', 0.292), ('2025-01-27', -0.299)]
+
+Extreme observations should be confirmed against genuine market events such as earnings announcements or guidance revisions.
+
+CHECK 4 - NVDA SPLIT CONTINUITY
+----------------------------------------------------------------------
+Result: PASS
+Worst NVDA daily return: -16.97%
+A return below -50% would indicate that the June 2024 10:1 stock split may not have been adjusted correctly.
+
+VALIDATION SUMMARY
+----------------------------------------------------------------------
+No gap > 5 days: True
+Row count plausible: True
+Split continuity: True
+Extreme-return tickers requiring review: 8
