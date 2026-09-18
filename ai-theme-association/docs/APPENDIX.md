@@ -1,8 +1,4 @@
 # Appendix
-
-Not for the findings deck. The brief puts the scaling memo here explicitly, and the
-lead–lag design is not in the deck's content list either.
-
 ---
 
 # Task 07 — Lead–lag test design
