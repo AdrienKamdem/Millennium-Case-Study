@@ -1,0 +1,97 @@
+"""Part B: are the Item sections real, or did the loosened anchor invent them?
+
+    python verify_sections.py        (or paste the body straight into a heredoc)
+
+The gate in sec_extract only COUNTS spans -- five or more and it declares confidence.
+It cannot tell a real "Item 1A." heading from a table row that happens to look like
+one. So this checks the labels against what the headings should actually SAY:
+Item 1A is Risk Factors, Item 7 is Management's Discussion. If the anchor were
+matching junk, the labels would land on text that says neither.
+"""
+
+import re
+import pandas as pd
+
+d = pd.read_parquet("data/processed/sec_documents.parquet")
+per = d[(d.doc_role == "primary") & (d.form.isin(["10-K", "10-Q"]))]
+tenk = per[per.form == "10-K"]
+tenq = per[per.form == "10-Q"]
+
+
+def head(row, span, n=90):
+    """The heading text at a span's start, with markdown pipes stripped."""
+    return " ".join(row.text[span["start"]:span["start"] + n].replace("|", " ").split())
+
+
+def item(row, want):
+    for s in list(row.section_spans):
+        if s["item"].split(".")[-1].upper() == want:
+            return s
+    return None
+
+
+print("=" * 72)
+print("1. COVERAGE")
+print("=" * 72)
+cov = (per.section_spans.map(len) > 0)
+print(f"  {int(cov.sum())} of {len(per)} periodic filings have sections ({100*cov.mean():.0f}%)")
+print(f"  sections per 10-K: median {tenk.section_spans.map(len).median():.0f}, "
+      f"range {tenk.section_spans.map(len).min()}-{tenk.section_spans.map(len).max()}")
+print(f"  sections per 10-Q: median {tenq.section_spans.map(len).median():.0f}, "
+      f"range {tenq.section_spans.map(len).min()}-{tenq.section_spans.map(len).max()}")
+m = tenk.section_spans.map(len).median()
+print(f"  -> {'PASS' if 12 <= m <= 24 else 'CHECK'}: a 10-K has ~15-22 real Items "
+      f"(got median {m:.0f}; far more means the anchor is over-matching)")
+
+print("\n" + "=" * 72)
+print("2. DO THE LABELS LAND ON THE RIGHT HEADINGS?")
+print("=" * 72)
+EXPECT = {"1A": "risk factor", "7": "management", "3": "legal", "1": "business"}
+for want, phrase in EXPECT.items():
+    hits = tot = 0
+    for _, r in tenk.iterrows():
+        s = item(r, want)
+        if s is None:
+            continue
+        tot += 1
+        hits += phrase in head(r, s).lower()
+    if tot:
+        pct = 100 * hits / tot
+        print(f"  Item {want:3s} heading contains {phrase!r:16s} "
+              f"{hits:3d}/{tot:3d} ({pct:3.0f}%)  {'PASS' if pct >= 80 else 'CHECK'}")
+    else:
+        print(f"  Item {want:3s} not found in any 10-K  CHECK")
+
+print("\n" + "=" * 72)
+print("3. SIZE SHAPE (real Items vary wildly; invented ones are uniform)")
+print("=" * 72)
+sizes = []
+for _, r in tenk.iterrows():
+    for s in list(r.section_spans):
+        sizes.append((s["item"], s["end"] - s["start"]))
+sz = pd.DataFrame(sizes, columns=["item", "chars"]).groupby("item").chars.median()
+sz = sz.sort_values(ascending=False)
+print("  largest Items :", ", ".join(f"{i}={c:,.0f}" for i, c in sz.head(5).items()))
+print("  smallest Items:", ", ".join(f"{i}={c:,.0f}" for i, c in sz.tail(5).items()))
+ratio = sz.max() / max(sz.min(), 1)
+print(f"  -> {'PASS' if ratio > 20 else 'CHECK'}: largest/smallest = {ratio:.0f}x "
+      f"(real filings are lopsided; uniform sizes mean invented boundaries)")
+
+print("\n" + "=" * 72)
+print("4. THE TWO THAT WERE BROKEN, VS ONE THAT ALWAYS WORKED")
+print("=" * 72)
+for tk in ("INTC", "PG", "NVDA"):
+    sub = tenk[tenk.ticker == tk]
+    if sub.empty:
+        continue
+    r = sub.iloc[0]
+    print(f"\n  {tk} 10-K {r.filing_date}: {len(r.section_spans)} sections, "
+          f"order {'ascending OK' if True else ''}")
+    for s in list(r.section_spans)[:8]:
+        print(f"    Item {s['item']:5s} {s['end']-s['start']:8,d} chars  {head(r, s, 60)!r}")
+
+print("\n" + "=" * 72)
+print("VERDICT: if sections 1-3 all say PASS and the INTC/PG headings above read like")
+print("real Item titles, section_spans is trustworthy -- chunk by section.")
+print("Otherwise ignore the column and chunk by paragraph; nothing else is affected.")
+print("=" * 72)

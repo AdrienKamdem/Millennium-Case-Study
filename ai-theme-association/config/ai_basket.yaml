@@ -1,0 +1,69 @@
+# AI factor construction.
+#
+# HARD CONSTRAINT: none of the 9 test names may appear in any leg. Including NVDA
+# in the long leg and then reading NVDA's beta off the resulting factor is
+# mechanically circular and invalidates Part 2.
+
+# ---------------------------------------------------------------------------
+# AIF-1 (primary): long AI pure-plays, short the tech sector, then orthogonalized
+# against market / size / value / profitability / investment / momentum.
+# Reading "pure-plays minus tech sector" pre-empts the objection that the AI
+# factor is just tech beta in disguise.
+# ---------------------------------------------------------------------------
+aif1:
+  long:
+    - AVGO      # custom AI accelerators / networking silicon
+    - AMD       # GPU / accelerator
+    - TSM       # foundry for essentially all leading-edge AI silicon
+    - ARM       # IP licensing into AI compute
+    - MRVL      # custom silicon / optical interconnect
+    - ANET      # AI datacentre networking
+    - VRT       # datacentre power and thermal
+    - SMCI      # AI server assembly
+    - ASML      # lithography
+    - PLTR      # applied AI software
+  short: XLK
+  weighting: equal
+  rebalance: daily
+
+  # Look-ahead: this basket is picked in 2026 knowing who won. Document it, and
+  # build the point-in-time variant below as the mitigation.
+  entry_dates_pit: {}   # ticker -> first date the name is eligible, = first filing
+                        # disclosing material AI/accelerator revenue + 1 quarter lag.
+                        # Populate for the point-in-time robustness run.
+
+# ---------------------------------------------------------------------------
+# AIF-2 (robustness): a thematic ETF. The brief asks you to "examine what your
+# chosen ingredient is actually made of" — so pull the holdings and regress it on
+# MKT + XLK before using it. Expect a high R2; if so, report that and say it is
+# the reason AIF-1 is preferred. A negative result here is a real finding.
+# ---------------------------------------------------------------------------
+aif2:
+  etf: AIQ
+  alternatives: [BOTZ, ARTY, CHAT]
+
+# ---------------------------------------------------------------------------
+# AIF-3 (optional): first principal component of pure-play residuals after
+# removing MKT and XLK. No hand-picking of weights, so it partially defuses the
+# look-ahead objection. Convergent validity if it correlates ~0.8 with AIF-1.
+# ---------------------------------------------------------------------------
+aif3:
+  enabled: false
+  n_components: 1
+
+# ---------------------------------------------------------------------------
+# Controls. Sector ETFs are orthogonalized against MKT + styles before entering
+# the per-stock regression, so the sector term does not absorb market beta.
+# ---------------------------------------------------------------------------
+controls:
+  fama_french: [Mkt-RF, SMB, HML, RMW, CMA]
+  momentum: true
+  sector_etfs: [XLK, XLI, XLP]
+  hac_lags: 5              # Newey-West
+  rolling_window_days: 126 # ~6 months, for the time-varying beta used in Part 3
+
+# Names whose betas act as the sanity gate. Run this BEFORE reading any other
+# result. If it fails, the factor is broken — report that rather than shipping.
+sanity_gate:
+  must_load_positive: [NVDA]
+  must_be_indistinguishable_from_zero: [PG, WM]

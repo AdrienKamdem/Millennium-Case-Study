@@ -1,0 +1,122 @@
+# Source register. `make probe` fills in the `probe` blocks.
+#
+# This file is half of Task 8. Record sources you TESTED AND REJECTED here too,
+# with the reason — that is the evidence of source triangulation, and it is worth
+# more than a clean list of things that happened to work.
+#
+# category: primary   = company disclosures, filings, official factor libraries
+#           secondary = press, third-party reports, analyst estimates
+#           inferred  = your own estimation
+
+sources:
+
+  sec_edgar:
+    category: primary
+    probe_result: "PASS 2026-09-14 — 9/9 CIKs resolved; NVDA filings back to 2020-07-13"
+    endpoint: "https://data.sec.gov/submissions/CIK{cik}.json"
+    auth: "User-Agent header with real contact address (SEC_USER_AGENT)"
+    rate_limit: "10 req/s hard cap"
+    documents: "10-K, 10-Q, 8-K. Extract Item 1 (business), Item 1A (risk factors), Item 7 (MD&A)."
+    note: >
+      Item 1A is an underrated negative-valence signal: ADBE and TEAM are likely to
+      have added AI-as-competitive-threat language over the window. That is primary
+      disclosure of a headwind, which news coverage tends to soften.
+    probe: {status: null, reached_jan_2023: null, notes: null}
+
+  sec_8k_ex99:
+    category: primary
+    documents: "Exhibit 99.1 quarterly earnings press releases. Every name, every quarter."
+    note: "The guaranteed substitute if transcripts fall through. ~135 documents."
+    probe: {status: null, reached_jan_2023: null, notes: null}
+
+  transcripts:
+    category: primary
+    route: null        # one of: fmp_api | api_ninjas | motley_fool_scrape | sec_substitute
+    note: >
+      Highest-value text in the corpus: management's own AI framing plus the analyst
+      Q&A where AI revenue claims get pressure-tested. Also the cleanest salience
+      measure available — AI-mentioning sentences / total sentences on a call is
+      volume-normalised by construction, needing no shrinkage or dedup. Use it as
+      the independent robustness check on news-derived salience.
+      Decide the route on day 1; do not let scraping eat an evening.
+    probe: {status: null, free_tier_sufficient: null, cost_gbp: null, notes: null}
+
+  ir_newsroom:
+    category: primary
+    note: "Per-company press release feeds. Small and stable but 9 bespoke parsers. Most cuttable item in the plan."
+    probe: {status: null, reached_jan_2023: null, notes: null}
+
+  gdelt_doc:
+    category: secondary
+    RATE_LIMIT: "1 request / 5 seconds, enforced with HTTP 429. Non-negotiable."
+    endpoint: "https://api.gdeltproject.org/api/v2/doc/doc"
+    params: "mode=ArtList, maxrecords=250, format=json, startdatetime/enddatetime"
+    note: >
+      The news backbone IF it reaches Jan 2023. Slice per company per month
+      (9 x 45 = 405 calls). Check that returned article DATES fall inside the
+      requested window — a 200 response is not evidence the date filter worked.
+    probe:
+      status: PASS
+      date: 2026-09-14
+      reached_jan_2023: true
+      evidence: 'query "Atlassian", window 2023-01-15..22: 62 articles, 62 with seendate in 202301'
+      notes: >
+        Date filtering confirmed working back to Jan 2023 — no BigQuery fallback needed.
+        Rate limit is 1 req / 5s (HTTP 429 on breach). Two probe queries failed purely
+        on throttling, not on coverage.
+        VOLUME: Atlassian — one of the thinnest names — returned 62 articles in a single
+        week, so a monthly slice would hit the 250 maxrecords cap even for small names.
+        Harvest weekly, and subsample for classification rather than exhausting.
+
+  gdelt_bigquery:
+    category: secondary
+    table: "gdelt-bq.gdeltv2.gkg_partitioned"
+    note: >
+      Fallback if the DOC API is shallow. Partition-prune on date, filter on
+      V2Organizations, project only the needed columns. Free tier is 1 TB/month —
+      run --dry_run first and check the byte estimate BEFORE executing. Run once,
+      cache to parquet, never repeat.
+    probe: {status: null, dry_run_bytes: null, notes: null}
+
+  hn_algolia:
+    category: secondary
+    probe_result: "FAIL 2026-09-14 — non-JSON response (JSONDecodeError). Possibly http-vs-https or a network intermediary. Not retried: deprioritised under the Friday deadline."
+    endpoint: "http://hn.algolia.com/api/v1/search_by_date"
+    note: >
+      Free, no key, full archive. Covers the 'developer/social chatter' source
+      category. Useful for NVDA/INTC/DELL/ADBE/TEAM and near-useless for PG/WM —
+      that asymmetry is itself a coverage-bias finding, so report it rather than
+      quietly dropping the source.
+    probe: {status: null, reached_jan_2023: null, notes: null}
+
+  yfinance:
+    category: primary
+    note: "Daily adjusted prices. Set auth_adjust explicitly — recent versions default auto_adjust=True, which changes what Close means."
+    fallback: stooq
+    probe: {status: null, notes: null}
+
+  ken_french:
+    category: primary
+    note: "Daily FF5 + Momentum. Values are in PERCENT — divide by 100 before joining to returns, or every beta is 100x wrong."
+    probe: {status: null, notes: null}
+
+# Sources considered and rejected, with the reason. Populate as you go.
+rejected:
+  - source: hn_algolia
+    reason: >
+      Probe returned a non-JSON body. Cause not diagnosed. Dropped rather than debugged
+      because it is a secondary 'developer chatter' source covering only the tech names,
+      and the time was worth more on Tasks 4-6. Its absence biases the corpus away from
+      developer-sentiment signal for NVDA/INTC/DELL/ADBE/TEAM, and not at all for PG/WM/CAT.
+
+# Paywalled sources that would materially improve this if available. Task 8 asks
+# for these explicitly — and for WHY each would help, not just a vendor list.
+paywalled:
+  - name: RavenPack
+    would_fix: "Point-in-time, entity-tagged news. Removes the retroactive link-rot survivorship bias that affects any corpus assembled from a 2026 vantage point, and solves entity disambiguation at scale."
+  - name: AlphaSense / Sentieo
+    would_fix: "Full-text transcripts and broker research, searchable. Removes the transcript-sourcing risk entirely."
+  - name: Visible Alpha
+    would_fix: "Segment-level consensus. Would let the CAT Energy & Transportation divergence test be run properly against hyperscaler capex guidance."
+  - name: LSEG / Refinitiv news archive
+    would_fix: "Licensed historical news with stable identifiers, replacing GDELT's English/US skew."

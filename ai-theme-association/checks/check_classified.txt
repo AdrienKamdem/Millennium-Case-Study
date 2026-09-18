@@ -1,0 +1,115 @@
+"""Audit classified.parquet before building the index.
+
+    cp check_classified.txt check_classified.py && python check_classified.py
+
+Six checks, each with its own verdict so no interpretation is needed downstream.
+The load-bearing one is #2: whether valence is conditioned on the AI aspect or is
+just reading document tone. If risk_factors does not sit below business and mdna,
+the aspect-based requirement in Task 03 is not met and the rubric needs work.
+"""
+
+import pandas as pd
+
+pd.set_option("display.width", 200)
+M = pd.read_parquet("data/processed/classified.parquet")
+S = M[M.ai_relevance == "substantive"]
+SEC = S[S.source_category == "sec_filing"]
+
+
+def rule(t):
+    print("\n" + "=" * 72 + f"\n{t}\n" + "=" * 72)
+
+
+# ------------------------------------------------------------------ 1
+rule("1. WHAT CAME BACK")
+print(M.ai_relevance.value_counts(dropna=False).to_string())
+sent = M[~M.get("gated_out", pd.Series(False, index=M.index)).fillna(False)]
+print(f"\nsent to the model : {len(sent):,}")
+print(f"gated out (=none) : {len(M) - len(sent):,}")
+print(f"failed            : {int(M.ai_relevance.isna().sum())} "
+      f"({M.ai_relevance.isna().mean():.2%})")
+
+
+# ------------------------------------------------------------------ 2
+rule("2. IS VALENCE CONDITIONED ON THE AI ASPECT?  <-- the one that matters")
+by_sec = SEC[SEC.section_name != ""].groupby("section_name").valence_ai.agg(["mean", "count"])
+by_sec = by_sec[by_sec["count"] >= 15].sort_values("mean")
+print(by_sec.round(2).to_string())
+
+rf = by_sec.loc["risk_factors", "mean"] if "risk_factors" in by_sec.index else None
+bz = by_sec.loc["business", "mean"] if "business" in by_sec.index else None
+md = by_sec.loc["mdna", "mean"] if "mdna" in by_sec.index else None
+print()
+if rf is None:
+    print("  CHECK: no risk_factors rows -- cannot test the conditioning.")
+else:
+    others = [x for x in (bz, md) if x is not None]
+    if others and rf < min(others):
+        print(f"  PASS: risk_factors ({rf:+.2f}) sits below business/mdna "
+              f"({', '.join(f'{o:+.2f}' for o in others)}).")
+        print("  Valence is tracking AI's impact on the company, not document tone.")
+        print("  All-positive is still expected: a 10-K frames AI as opportunity even")
+        print("  where it is a threat. What matters is the ORDERING across sections.")
+    else:
+        print(f"  CHECK: risk_factors ({rf:+.2f}) is NOT below business/mdna.")
+        print("  The aspect conditioning may not be working -- read 5 risk_factors")
+        print("  chunks by hand before trusting the valence half of the index.")
+
+
+# ------------------------------------------------------------------ 3
+rule("3. IS THE NEGATIVE CLASS EVER USED?")
+print(S.ai_role.value_counts().to_string())
+print("\nvalence distribution among substantive:")
+print(S.valence_ai.value_counts().sort_index().to_string())
+neg = (S.valence_ai < 0).mean()
+print(f"\n  negative share: {neg:.1%}")
+print("  PASS: the model does use the negative end." if neg >= 0.02 else
+      "  CHECK: almost nothing is negative. Either AI disclosure genuinely is\n"
+      "  near-uniformly positive (plausible for filings), or the rubric is not\n"
+      "  eliciting D_negative_exposure. Read a few ADBE/TEAM risk_factors chunks.")
+
+
+# ------------------------------------------------------------------ 4
+rule("4. THE DISRUPTION NAMES")
+d = S[S.ticker.isin(["ADBE", "TEAM", "INTC"])]
+print("all substantive:")
+print(d.groupby("ticker").valence_ai.agg(["mean", "count"]).round(2).to_string())
+r = d[d.section_name == "risk_factors"]
+if len(r):
+    print("\nrisk_factors only -- where AI-as-threat language lives:")
+    print(r.groupby("ticker").valence_ai.agg(["mean", "count"]).round(2).to_string())
+    print("\nmost negative examples:")
+    for _, x in r.nsmallest(3, "valence_ai").iterrows():
+        # valence_ai is float64, not int -- the failed rows coerce the column via NaN.
+        print(f"  [{x.ticker} {x.valence_ai:+.0f}] {str(x.evidence_span)[:150]}")
+
+
+# ------------------------------------------------------------------ 5
+rule("5. RAW SALIENCE (pre-shrinkage)")
+sal = (M.assign(sub=M.ai_relevance.eq("substantive"))
+        .groupby(["source_category", "ticker"]).sub.agg(["mean", "sum", "count"]))
+print(sal.round(3).to_string())
+
+
+# ------------------------------------------------------------------ 6
+rule("6. THIN CELLS -- why shrinkage is needed")
+cells = (SEC.groupby(["ticker", "period"]).size()
+            .rename("substantive_chunks").reset_index())
+print(f"ticker-quarters with substantive SEC coverage: {len(cells)} of "
+      f"{SEC.ticker.nunique() * SEC.period.nunique()} possible")
+print(f"cells with < 5 substantive chunks: {int((cells.substantive_chunks < 5).sum())}")
+print("\nthinnest:")
+print(cells.nsmallest(8, "substantive_chunks").to_string(index=False))
+
+
+# ------------------------------------------------------------------ 7
+rule("7. FAILURES")
+f = M[M.ai_relevance.isna()]
+if len(f):
+    print(f.groupby(["source_category", "ticker"]).size().to_string())
+    print(f"\n  {'scattered -- ignore' if f.ticker.nunique() > 4 else 'CLUSTERED -- look at these'}")
+    print("  sample titles:")
+    for t in f.title.head(4):
+        print("   ", str(t)[:90])
+else:
+    print("none")
