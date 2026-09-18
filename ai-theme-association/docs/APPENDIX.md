@@ -3,8 +3,6 @@
 
 # Task 07 — Lead–lag test design
 
-**Design only. Not implemented, by instruction.**
-
 ## The question
 
 Does a change in a company's semantic AI association **precede** a change in its
